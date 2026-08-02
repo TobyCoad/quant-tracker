@@ -196,7 +196,9 @@ function renderScout() {
   const nIntern = roles.filter((r) => ["summer_internship", "spring_week", "off_cycle"].includes(r.category)).length;
   const nGrad = roles.filter((r) => r.category === "graduate").length;
 
+  const nToday = run.date ? roles.filter((r) => r.first_seen >= run.date).length : 0;
   const chips = [
+    ["today", `Today<span class="n">${nToday}</span>`],
     ["new", `New 7d<span class="n">${nNew}</span>`],
     ["intern", `Interns<span class="n">${nIntern}</span>`],
     ["grad", `Grads<span class="n">${nGrad}</span>`],
@@ -210,6 +212,7 @@ function renderScout() {
   const tracked = trackedRoleKeys();
   const q = scoutSearch.toLowerCase();
   const shown = roles.filter((r) => {
+    if (scoutFilter === "today" && !(run.date && r.first_seen >= run.date)) return false;
     if (scoutFilter === "new" && r.first_seen < cutoff) return false;
     if (scoutFilter === "intern" && !["summer_internship", "spring_week", "off_cycle"].includes(r.category)) return false;
     if (scoutFilter === "grad" && r.category !== "graduate") return false;
@@ -253,6 +256,7 @@ function renderScout() {
 
   $("scout-empty").classList.toggle("hidden", shown.length > 0);
   $("scout-empty-hint").textContent =
+    scoutFilter === "today" ? `Nothing new from the latest run (${fmtDate(run.date)}) — try New 7d.` :
     scoutFilter === "new" ? "Nothing first seen in the last 7 days — try All." : "";
 
   // badge: roles first seen on the latest run date
@@ -383,17 +387,123 @@ function closeSheets() {
     $(id).classList.add("hidden");
 }
 
+const TAB_TITLE = { pipeline: "Pipeline", scout: "Role Scout", cv: "CV Manager" };
+
 function switchTab(name) {
   document.querySelectorAll(".tabbtn").forEach((b) =>
     b.classList.toggle("active", b.dataset.tab === name));
-  $("tab-pipeline").classList.toggle("hidden", name !== "pipeline");
-  $("tab-scout").classList.toggle("hidden", name !== "scout");
-  $("page-title").textContent = name === "pipeline" ? "Pipeline" : "Role Scout";
+  for (const t of Object.keys(TAB_TITLE))
+    $(`tab-${t}`).classList.toggle("hidden", t !== name);
+  $("page-title").textContent = TAB_TITLE[name];
   $("fab").classList.toggle("hidden", name !== "pipeline");
   if (name === "scout" && GH.hasToken()) {
     const age = feed ? Date.now() - new Date(feed.fetchedAt).getTime() : Infinity;
     if (age > 30 * 60e3) refreshFeed(true);
   }
+  if (name === "cv" && !cvFiles.length) loadCvList();
+}
+
+/* ---------------- CV manager ---------------- */
+
+let cvFiles = [];
+let cvCur = null;               // { name, sha, baseText }
+
+const cvDraftKey = (name) => `qt.cvdraft.${name}`;
+
+function cvStatus(msg) { $("cv-status").innerHTML = msg; }
+
+async function loadCvList() {
+  if (!GH.hasToken()) { cvStatus("Connect GitHub in settings ⚙ to load your CVs."); return; }
+  cvStatus("Loading CV list…");
+  try {
+    cvFiles = await GH.listCv();
+  } catch (e) {
+    cvStatus(`Couldn't list CVs: ${esc(e.message)}`);
+    return;
+  }
+  if (!cvFiles.length) { cvStatus("No .tex files in tracker/cv yet."); return; }
+  renderCvChips();
+  selectCv(cvCur?.name && cvFiles.some((f) => f.name === cvCur.name)
+    ? cvCur.name : cvFiles[0].name);
+}
+
+function renderCvChips() {
+  $("cv-files").innerHTML = cvFiles.map((f) =>
+    `<button class="chip ${cvCur?.name === f.name ? "active" : ""}" data-cv="${esc(f.name)}">${esc(f.name)}</button>`).join("");
+  $("cv-files").querySelectorAll(".chip").forEach((c) =>
+    c.onclick = () => selectCv(c.dataset.cv));
+}
+
+async function selectCv(name) {
+  cvStatus(`Loading <b>${esc(name)}</b>…`);
+  try {
+    const { text, sha } = await GH.loadCvFile(name);
+    cvCur = { name, sha, baseText: text };
+    const draft = localStorage.getItem(cvDraftKey(name));
+    $("cv-editor").value = draft ?? text;
+    renderCvChips();
+    updateCvStatus();
+  } catch (e) {
+    cvStatus(`Couldn't load ${esc(name)}: ${esc(e.message)}`);
+  }
+}
+
+function updateCvStatus() {
+  if (!cvCur) return;
+  const dirty = $("cv-editor").value !== cvCur.baseText;
+  const n = $("cv-editor").value.length;
+  cvStatus(`<b>${esc(cvCur.name)}</b> · ${(n / 1000).toFixed(1)}k chars · ` +
+    (dirty ? `<span style="color:var(--amber)">unsaved edits (kept on this device)</span>`
+           : `in sync with GitHub`));
+}
+
+function cvOnInput() {
+  if (!cvCur) return;
+  const v = $("cv-editor").value;
+  if (v === cvCur.baseText) localStorage.removeItem(cvDraftKey(cvCur.name));
+  else localStorage.setItem(cvDraftKey(cvCur.name), v);
+  updateCvStatus();
+}
+
+function cvCompile() {
+  const src = $("cv-editor").value;
+  if (!src.trim()) { toast("Nothing to compile"); return; }
+  $("cv-form-src").value = src;
+  $("cv-form").submit();
+  toast("Compiling — PDF opens in a new tab (~10 s)", 3500);
+}
+
+async function cvSave() {
+  if (!cvCur) return;
+  if (GH.MOCK) { toast("Mock mode — not saved"); return; }
+  const text = $("cv-editor").value;
+  $("cv-save").disabled = true;
+  try {
+    const res = await GH.saveCvFile(cvCur.name, text, cvCur.sha);
+    if (res.conflict) {
+      toast("Conflict — file changed on GitHub. Reloading…", 3500);
+      localStorage.setItem(cvDraftKey(cvCur.name), text);
+      await selectCv(cvCur.name);
+      return;
+    }
+    cvCur.sha = res.sha;
+    cvCur.baseText = text;
+    localStorage.removeItem(cvDraftKey(cvCur.name));
+    updateCvStatus();
+    toast("Saved to GitHub ✓");
+  } catch (e) {
+    toast(`Save failed: ${e.message}`, 4000);
+  } finally {
+    $("cv-save").disabled = false;
+  }
+}
+
+function cvRevert() {
+  if (!cvCur) return;
+  if (!confirm(`Discard local edits to ${cvCur.name} and restore the GitHub version?`)) return;
+  localStorage.removeItem(cvDraftKey(cvCur.name));
+  $("cv-editor").value = cvCur.baseText;
+  updateCvStatus();
 }
 
 function renderAll() { renderPipeline(); renderScout(); }
@@ -421,6 +531,10 @@ $("s-wipe").onclick = () => {
   location.reload();
 };
 $("scout-search").oninput = (e) => { scoutSearch = e.target.value; renderScout(); };
+$("cv-editor").oninput = cvOnInput;
+$("cv-compile").onclick = cvCompile;
+$("cv-save").onclick = cvSave;
+$("cv-revert").onclick = cvRevert;
 
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden && GH.hasToken()) { syncNow(true); refreshFeed(true); }
@@ -444,7 +558,7 @@ if ("serviceWorker" in navigator && !location.search.includes("nosw")) {
   };
   navigator.serviceWorker.addEventListener("controllerchange", () => location.reload());
 }
-$("s-version").textContent = "1.0.1";
+$("s-version").textContent = "1.1.0";
 
 renderAll();
 switchTab("pipeline");

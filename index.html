@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Quant Tracker">
-<link rel="stylesheet" href="css/style.css?v=2">
+<link rel="stylesheet" href="css/style.css?v=3">
 </head>
 <body>
 
@@ -57,7 +57,33 @@
     </div>
   </section>
 
+  <!-- ============ CV TAB ============ -->
+  <section id="tab-cv" class="tab hidden">
+    <div id="cv-files" class="chips"></div>
+    <div id="cv-status" class="summary-line">No CV loaded.</div>
+    <textarea id="cv-editor" class="cv-editor" spellcheck="false"
+      autocapitalize="off" autocomplete="off" autocorrect="off"
+      placeholder="Connect GitHub in settings to load your CVs…"></textarea>
+    <div class="cv-actions">
+      <button id="cv-compile" class="btn primary">Compile PDF ↗</button>
+      <button id="cv-save" class="btn">Save to GitHub</button>
+      <button id="cv-revert" class="btn danger">Revert</button>
+    </div>
+    <p class="muted tiny">Compiling sends the .tex to texlive.net (the LaTeX
+    project's compile service) and opens the PDF in a new tab — use the share
+    sheet there to save or send it.</p>
+  </section>
+
 </main>
+
+<!-- hidden CORS-free compile form (learnlatex.org pattern) -->
+<form id="cv-form" method="POST" action="https://texlive.net/cgi-bin/latexcgi"
+      enctype="multipart/form-data" target="_blank" style="display:none">
+  <textarea name="filecontents[]" id="cv-form-src"></textarea>
+  <input type="hidden" name="filename[]" value="document.tex">
+  <input type="hidden" name="engine" value="pdflatex">
+  <input type="hidden" name="return" value="pdf">
+</form>
 
 <button id="fab" class="fab" aria-label="Add application">+</button>
 
@@ -68,6 +94,9 @@
   <button class="tabbtn" data-tab="scout">
     <span class="tabicon">&#128225;</span>Scout
     <span id="scout-badge" class="badge hidden"></span>
+  </button>
+  <button class="tabbtn" data-tab="cv">
+    <span class="tabicon">&#128196;</span>CV
   </button>
 </nav>
 
@@ -126,7 +155,7 @@
 
 <div id="toast" class="toast hidden"></div>
 
-<script src="js/gh.js?v=2"></script>
-<script src="js/app.js?v=2"></script>
+<script src="js/gh.js?v=3"></script>
+<script src="js/app.js?v=3"></script>
 </body>
 </html>

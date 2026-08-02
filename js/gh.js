@@ -134,6 +134,47 @@ const GH = (() => {
     return new Date(Date.now() - n * 864e5).toISOString();
   }
 
+  /* ---------- CV manager (tracker/cv/*.tex in the private repo) ---------- */
+
+  async function listCv() {
+    if (MOCK) return (await (await fetch("dev-mock/cvlist.json", { cache: "no-store" })).json());
+    const r = await fetch(API + "tracker/cv?ref=main", { headers: headers(), cache: "no-store" });
+    if (r.status === 404) return [];
+    if (r.status === 401 || r.status === 403) throw new Error(`auth ${r.status}`);
+    if (!r.ok) throw new Error(`GitHub ${r.status}`);
+    return (await r.json()).filter((f) => f.name.endsWith(".tex")).map((f) => ({ name: f.name }));
+  }
+
+  async function loadCvFile(name) {
+    if (MOCK) {
+      const r = await fetch(`dev-mock/${name}`, { cache: "no-store" });
+      if (!r.ok) throw new Error(`mock ${name}`);
+      return { text: await r.text(), sha: "mock" };
+    }
+    const r = await fetch(API + `tracker/cv/${name}?ref=main&t=${Date.now()}`, {
+      headers: headers(), cache: "no-store",
+    });
+    if (r.status === 401 || r.status === 403) throw new Error(`auth ${r.status}`);
+    if (!r.ok) throw new Error(`GitHub ${r.status}`);
+    const body = await r.json();
+    return { text: decodeB64(body.content), sha: body.sha };
+  }
+
+  async function saveCvFile(name, text, sha) {
+    if (MOCK) return { ok: true, sha: "mock" };
+    const body = {
+      message: `tracker: update ${name}`,
+      content: encodeB64(text), branch: "main",
+    };
+    if (sha) body.sha = sha;
+    const r = await fetch(API + `tracker/cv/${name}`, {
+      method: "PUT", headers: headers(), body: JSON.stringify(body),
+    });
+    if (r.status === 409 || r.status === 422) return { ok: false, conflict: true };
+    if (!r.ok) throw new Error(`GitHub PUT ${r.status}`);
+    return { ok: true, sha: (await r.json()).content.sha };
+  }
+
   async function testConnection() {
     if (MOCK) return { ok: true, msg: "mock mode" };
     if (!token()) return { ok: false, msg: "No token saved" };
@@ -158,5 +199,6 @@ const GH = (() => {
   }
 
   return { fetchFeed, loadRemoteApps, putRemoteApps, mergeApps, testConnection,
+           listCv, loadCvFile, saveCvFile,
            hasToken: () => MOCK || !!token(), MOCK };
 })();
