@@ -36,7 +36,7 @@ const GH = (() => {
       cache: "no-store",
     });
     if (r.status === 404) return null;
-    if (r.status === 401 || r.status === 403) throw new Error("auth");
+    if (r.status === 401 || r.status === 403) throw new Error(`auth ${r.status}`);
     if (!r.ok) throw new Error(`GitHub ${r.status}`);
     if (raw) return r.json();
     const body = await r.json();
@@ -140,10 +140,18 @@ const GH = (() => {
     try {
       const r = await fetch(`https://api.github.com/repos/${REPO}`, { headers: headers() });
       if (r.status === 401) return { ok: false, msg: "Token rejected (401)" };
-      if (r.status === 404) return { ok: false, msg: "Repo not visible — check token scope" };
+      if (r.status === 404) return { ok: false, msg: "Repo not visible — select quant-role-scout on the token" };
       if (!r.ok) return { ok: false, msg: `GitHub error ${r.status}` };
-      const push = (await r.json()).permissions?.push;
-      return { ok: true, msg: push ? "Connected — read + write ✓" : "Read-only token (sync disabled)" };
+      // repo metadata isn't enough: actually exercise the Contents permission,
+      // which fine-grained tokens don't include by default
+      const c = await fetch(API + "data/last_run.json", {
+        headers: headers("application/vnd.github.raw+json"), cache: "no-store",
+      });
+      if (c.status === 401 || c.status === 403 || c.status === 404)
+        return { ok: false, msg: `Contents blocked (${c.status}) — token needs Contents: Read and write` };
+      if (!c.ok) return { ok: false, msg: `Contents error ${c.status}` };
+      const run = await c.json();
+      return { ok: true, msg: `Connected ✓ — scout last ran ${run.date}` };
     } catch {
       return { ok: false, msg: "Network error" };
     }

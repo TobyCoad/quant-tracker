@@ -299,7 +299,9 @@ async function refreshFeed(silent) {
     renderScout();
     if (!silent) toast("Scout feed updated");
   } catch (e) {
-    if (!silent) toast(e.message === "auth" ? "GitHub token rejected — check settings" : "Feed refresh failed");
+    if (!silent) toast(e.message.startsWith("auth")
+      ? `Token lacks Contents access (${e.message.slice(5)}) — check settings`
+      : `Feed refresh failed: ${e.message}`, 4000);
   } finally {
     $("btn-refresh").classList.remove("spin");
   }
@@ -337,7 +339,7 @@ async function syncNow(silent) {
     renderAll();
     if (!silent) toast("Synced");
   } catch (e) {
-    setSyncStatus(e.message === "auth" ? "Token rejected" : "Sync failed (offline?)");
+    setSyncStatus(e.message.startsWith("auth") ? `Token rejected (${e.message.slice(5)})` : `Sync failed: ${e.message}`);
     if (!silent) toast("Sync failed");
   } finally {
     syncing = false;
@@ -442,7 +444,7 @@ if ("serviceWorker" in navigator && !location.search.includes("nosw")) {
   };
   navigator.serviceWorker.addEventListener("controllerchange", () => location.reload());
 }
-$("s-version").textContent = "1.0.0";
+$("s-version").textContent = "1.0.1";
 
 renderAll();
 switchTab("pipeline");
