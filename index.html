@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Quant Tracker</title>
+<meta name="description" content="Quant application pipeline + daily role scout feed">
+<meta name="theme-color" content="#0b0a08">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Quant Tracker">
+<link rel="stylesheet" href="css/style.css?v=1">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-title">
+    <span class="logo-dot"></span>
+    <h1 id="page-title">Pipeline</h1>
+  </div>
+  <div class="topbar-actions">
+    <button id="btn-refresh" class="iconbtn" title="Refresh" aria-label="Refresh">&#x21bb;</button>
+    <button id="btn-settings" class="iconbtn" title="Settings" aria-label="Settings">&#9881;</button>
+  </div>
+</header>
+
+<div id="update-pill" class="update-pill hidden">Update ready — tap to reload</div>
+
+<main id="main">
+
+  <!-- ============ PIPELINE TAB ============ -->
+  <section id="tab-pipeline" class="tab">
+    <div id="pipeline-summary" class="summary-line"></div>
+    <div id="pipeline-filters" class="chips" role="tablist"></div>
+    <div id="apps-list" class="cards"></div>
+    <div id="pipeline-empty" class="empty hidden">
+      <p>No applications yet.</p>
+      <p class="muted">Add one with the + button, or connect GitHub in
+      settings to pull your saved pipeline.</p>
+    </div>
+  </section>
+
+  <!-- ============ SCOUT TAB ============ -->
+  <section id="tab-scout" class="tab hidden">
+    <div id="scout-banner" class="scout-banner">
+      <div id="scout-run-info" class="muted">Scout feed not loaded.</div>
+    </div>
+    <div id="scout-filters" class="chips"></div>
+    <input id="scout-search" class="search" type="search" placeholder="Filter roles… (firm, title, city)">
+    <div id="scout-list" class="cards"></div>
+    <div id="scout-empty" class="empty hidden">
+      <p>No roles match.</p>
+      <p class="muted" id="scout-empty-hint"></p>
+    </div>
+  </section>
+
+</main>
+
+<button id="fab" class="fab" aria-label="Add application">+</button>
+
+<nav class="tabbar">
+  <button class="tabbtn active" data-tab="pipeline">
+    <span class="tabicon">&#9776;</span>Pipeline
+  </button>
+  <button class="tabbtn" data-tab="scout">
+    <span class="tabicon">&#128225;</span>Scout
+    <span id="scout-badge" class="badge hidden"></span>
+  </button>
+</nav>
+
+<!-- ============ EDIT SHEET ============ -->
+<div id="sheet-backdrop" class="backdrop hidden"></div>
+<div id="edit-sheet" class="sheet hidden">
+  <div class="sheet-handle"></div>
+  <h2 id="edit-title">Edit application</h2>
+  <label>Firm
+    <input id="f-firm" type="text" autocomplete="off">
+  </label>
+  <label>Role
+    <input id="f-role" type="text" autocomplete="off" placeholder="e.g. QT Intern 2027">
+  </label>
+  <label>Status</label>
+  <div id="f-status" class="status-picker"></div>
+  <label>Link
+    <input id="f-url" type="url" inputmode="url" placeholder="https://…">
+  </label>
+  <label>Notes
+    <textarea id="f-notes" rows="3" placeholder="OA deadline, contacts, next steps…"></textarea>
+  </label>
+  <div class="sheet-actions">
+    <button id="f-delete" class="btn danger">Delete</button>
+    <button id="f-save" class="btn primary">Save</button>
+  </div>
+</div>
+
+<!-- ============ SCOUT DETAIL SHEET ============ -->
+<div id="role-sheet" class="sheet hidden">
+  <div class="sheet-handle"></div>
+  <div id="role-detail"></div>
+</div>
+
+<!-- ============ SETTINGS SHEET ============ -->
+<div id="settings-sheet" class="sheet hidden">
+  <div class="sheet-handle"></div>
+  <h2>Settings</h2>
+  <p class="muted small">A fine-grained GitHub token (repo:
+  <code>TobyCoad/quant-role-scout</code>, Contents read&nbsp;+&nbsp;write) lets the app
+  pull the daily scout feed and sync your pipeline privately.</p>
+  <label>GitHub token
+    <input id="s-token" type="password" autocomplete="off" placeholder="github_pat_…">
+  </label>
+  <div class="row">
+    <button id="s-test" class="btn">Test connection</button>
+    <span id="s-test-result" class="muted small"></span>
+  </div>
+  <div id="s-sync-status" class="muted small"></div>
+  <div class="sheet-actions">
+    <button id="s-wipe" class="btn danger">Wipe local data</button>
+    <button id="s-save" class="btn primary">Save</button>
+  </div>
+  <p class="muted tiny">v<span id="s-version"></span></p>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="js/gh.js?v=1"></script>
+<script src="js/app.js?v=1"></script>
+</body>
+</html>
