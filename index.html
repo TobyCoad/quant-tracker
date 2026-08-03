@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Quant Tracker">
-<link rel="stylesheet" href="css/style.css?v=3">
+<link rel="stylesheet" href="css/style.css?v=4">
 </head>
 <body>
 
@@ -74,6 +74,18 @@
     sheet there to save or send it.</p>
   </section>
 
+  <!-- ============ FIRMS TAB ============ -->
+  <section id="tab-firms" class="tab hidden">
+    <div id="firms-summary" class="summary-line"></div>
+    <div id="firms-filters" class="chips"></div>
+    <div id="firms-list" class="cards"></div>
+    <div id="firms-empty" class="empty hidden">
+      <p>No firms on the watchlist.</p>
+      <p class="muted">Connect GitHub in settings to pull the seeded list,
+      or add firms with the + button.</p>
+    </div>
+  </section>
+
 </main>
 
 <!-- hidden CORS-free compile form (learnlatex.org pattern) -->
@@ -97,6 +109,10 @@
   </button>
   <button class="tabbtn" data-tab="cv">
     <span class="tabicon">&#128196;</span>CV
+  </button>
+  <button class="tabbtn" data-tab="firms">
+    <span class="tabicon">&#127963;</span>Firms
+    <span id="firms-badge" class="badge hidden"></span>
   </button>
 </nav>
 
@@ -122,6 +138,29 @@
   <div class="sheet-actions">
     <button id="f-delete" class="btn danger">Delete</button>
     <button id="f-save" class="btn primary">Save</button>
+  </div>
+</div>
+
+<!-- ============ FIRM SHEET ============ -->
+<div id="firm-sheet" class="sheet hidden">
+  <div class="sheet-handle"></div>
+  <h2 id="firm-title">Edit firm</h2>
+  <label>Firm
+    <input id="ff-name" type="text" autocomplete="off">
+  </label>
+  <label>Type</label>
+  <div id="ff-type" class="status-picker"></div>
+  <label>Status</label>
+  <div id="ff-status" class="status-picker"></div>
+  <label>Careers page
+    <input id="ff-url" type="url" inputmode="url" placeholder="https://…">
+  </label>
+  <label>Notes
+    <textarea id="ff-notes" rows="2" placeholder="Programme names, opening dates…"></textarea>
+  </label>
+  <div class="sheet-actions">
+    <button id="ff-delete" class="btn danger">Delete</button>
+    <button id="ff-save" class="btn primary">Save</button>
   </div>
 </div>
 
@@ -155,7 +194,7 @@
 
 <div id="toast" class="toast hidden"></div>
 
-<script src="js/gh.js?v=3"></script>
-<script src="js/app.js?v=3"></script>
+<script src="js/gh.js?v=4"></script>
+<script src="js/app.js?v=4"></script>
 </body>
 </html>

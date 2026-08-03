@@ -267,6 +267,26 @@ code { font-family: var(--mono); font-size: .92em; background: var(--panel-2); p
 #role-detail .sec { font-size: 11px; font-weight: 800; letter-spacing: .8px; color: var(--accent); text-transform: uppercase; margin-top: 12px; font-family: var(--mono); }
 #role-detail .desc { font-size: 13px; color: var(--muted); white-space: pre-line; margin-top: 6px; }
 
+/* ---- firms tab ---- */
+.card.s-firm-posted  { border-left-color: var(--green); }
+.card.s-firm-waiting { border-left-color: var(--amber); }
+.card.s-firm-applied { border-left-color: var(--blue); }
+.pill.f-posted   { background: #0c3320; color: #55efa0; }
+.pill.f-waiting  { background: #3a2c07; color: #ffd166; }
+.pill.f-applied  { background: #0d2b36; color: #6fd0ef; }
+.pill.f-pass     { background: #262115; color: #b3a88f; }
+.status-opt.sel.f-posted  { background: #0c3320; color: #55efa0; border-color: var(--green); }
+.status-opt.sel.f-waiting { background: #3a2c07; color: #ffd166; border-color: var(--amber); }
+.status-opt.sel.f-applied { background: #0d2b36; color: #6fd0ef; border-color: var(--blue); }
+.status-opt.sel.f-pass,
+.status-opt.sel.f-prop, .status-opt.sel.f-hf, .status-opt.sel.f-sell {
+  background: var(--panel-2); color: var(--text); border-color: var(--accent);
+}
+.tag.ft-prop { color: #6fd0ef; }
+.tag.ft-hf   { color: #d3bcff; }
+.tag.ft-sell { color: #ffd166; }
+.btn.livehint { border-color: var(--green); color: var(--green); }
+
 /* ---- CV manager ---- */
 .cv-editor {
   width: 100%; height: 52vh; resize: vertical;

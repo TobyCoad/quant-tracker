@@ -14,8 +14,11 @@ const CAT_LABEL = {
 };
 
 let apps = loadJSON("qt.apps", []);
+let firms = loadJSON("qt.firms", []);
 let feed = loadJSON("qt.feed", null);          // {lastRun, roles, fetchedAt}
 let pipelineFilter = "all";
+let firmFilter = "all";
+let currentTab = "pipeline";
 let scoutFilter = "new";
 let scoutSearch = "";
 let editingId = null;                          // app id being edited, or null = new
@@ -311,10 +314,168 @@ async function refreshFeed(silent) {
   }
 }
 
+/* ---------------- firms tab ---------------- */
+
+const FIRM_STATUS_ORDER = ["posted", "waiting", "applied", "pass"];
+const FIRM_STATUS_LABEL = { posted: "Posted!", waiting: "Waiting", applied: "Applied", pass: "Pass" };
+const FIRM_TYPE_LABEL = { prop: "PROP / MM", hf: "HEDGE FUND", sell: "SELL-SIDE" };
+const EARLY_CATS = ["graduate", "summer_internship", "spring_week", "off_cycle"];
+const TARGET_LOCS = ["london", "dublin", "amsterdam", "united kingdom", "ireland", "netherlands"];
+
+// grad/intern roles in target cities from the scout feed matching this firm
+function firmFeedRoles(f) {
+  if (!feed?.roles || !f.match?.length) return [];
+  return feed.roles.filter((r) => {
+    const co = (r.company || "").toLowerCase();
+    if (!f.match.some((m) => co.includes(m))) return false;
+    if (f.not?.some((m) => co.includes(m))) return false;
+    if (!EARLY_CATS.includes(r.category)) return false;
+    const loc = (r.location || "").toLowerCase();
+    return TARGET_LOCS.some((t) => loc.includes(t));
+  });
+}
+
+function renderFirms() {
+  const live = firms.filter((f) => !f.deleted);
+  const matches = new Map(live.map((f) => [f.id, firmFeedRoles(f)]));
+
+  const counts = {};
+  for (const f of live) counts[f.status] = (counts[f.status] || 0) + 1;
+  const alerts = live.filter((f) => f.status === "waiting" && matches.get(f.id).length).length;
+
+  $("firms-summary").innerHTML = live.length
+    ? `<b>${counts.waiting || 0}</b> waiting &nbsp;·&nbsp; <b>${counts.posted || 0}</b> posted` +
+      (alerts ? ` &nbsp;·&nbsp; <span style="color:var(--green)"><b>${alerts}</b> waiting firm${alerts === 1 ? " has" : "s have"} roles in the feed</span>` : "")
+    : "";
+
+  const chips = [["all", `All<span class="n">${live.length}</span>`]];
+  for (const s of FIRM_STATUS_ORDER)
+    if (counts[s]) chips.push([s, `${FIRM_STATUS_LABEL[s]}<span class="n">${counts[s]}</span>`]);
+  $("firms-filters").innerHTML = chips.map(([k, html]) =>
+    `<button class="chip ${firmFilter === k ? "active" : ""}" data-f="${k}">${html}</button>`).join("");
+  $("firms-filters").querySelectorAll(".chip").forEach((c) =>
+    c.onclick = () => { firmFilter = c.dataset.f; renderFirms(); });
+
+  const shown = live
+    .filter((f) => firmFilter === "all" || f.status === firmFilter)
+    .sort((a, b) => {
+      const am = matches.get(a.id).length ? 0 : 1;      // feed hits float up
+      const bm = matches.get(b.id).length ? 0 : 1;
+      if (am !== bm) return am - bm;
+      const d = FIRM_STATUS_ORDER.indexOf(a.status) - FIRM_STATUS_ORDER.indexOf(b.status);
+      return d !== 0 ? d : a.name.localeCompare(b.name);
+    });
+
+  $("firms-list").innerHTML = shown.map((f) => {
+    const m = matches.get(f.id);
+    return `
+    <div class="card s-firm-${f.status} ${f.status === "pass" ? "dim" : ""}" data-id="${f.id}">
+      <div class="card-top">
+        <div>
+          <div class="card-firm">${esc(f.name)}</div>
+          <div class="card-role"><span class="tag ft-${f.type}">${FIRM_TYPE_LABEL[f.type] || ""}</span></div>
+        </div>
+        <span class="pill f-${f.status}">${FIRM_STATUS_LABEL[f.status]}</span>
+      </div>
+      ${f.notes ? `<div class="card-sub">✎ ${esc(f.notes)}</div>` : ""}
+      <div class="role-actions">
+        ${f.url ? `<a class="btn sm" href="${esc(f.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Careers ↗</a>` : ""}
+        ${m.length ? `<button class="btn sm livehint" data-feed="${f.id}">${m.length} in feed →</button>` : ""}
+      </div>
+    </div>`;
+  }).join("");
+
+  $("firms-list").querySelectorAll(".card").forEach((c) =>
+    c.onclick = () => openFirmEdit(c.dataset.id));
+  $("firms-list").querySelectorAll("[data-feed]").forEach((b) =>
+    b.onclick = (e) => {
+      e.stopPropagation();
+      const f = firms.find((x) => x.id === b.dataset.feed);
+      scoutSearch = f.match?.[0] || f.name;
+      scoutFilter = "all";
+      $("scout-search").value = scoutSearch;
+      switchTab("scout");
+      renderScout();
+    });
+
+  $("firms-empty").classList.toggle("hidden", live.length > 0);
+  $("firms-badge").textContent = alerts;
+  $("firms-badge").classList.toggle("hidden", !alerts);
+}
+
+/* ---- firm edit sheet ---- */
+
+let editingFirmId = null;
+
+function buildFirmPicker(elId, opts, labels, sel) {
+  $(elId).innerHTML = opts.map((s) =>
+    `<button type="button" class="status-opt f-${s} ${s === sel ? "sel" : ""}" data-s="${s}">${labels[s]}</button>`).join("");
+  $(elId).querySelectorAll(".status-opt").forEach((b) =>
+    b.onclick = () => buildFirmPicker(elId, opts, labels, b.dataset.s));
+}
+const pickedFirm = (elId, fb) => $(elId).querySelector(".sel")?.dataset.s || fb;
+
+function openFirmEdit(id) {
+  editingFirmId = id;
+  const f = id ? firms.find((x) => x.id === id) : null;
+  $("firm-title").textContent = f ? "Edit firm" : "Add firm";
+  $("ff-name").value = f?.name ?? "";
+  $("ff-url").value = f?.url ?? "";
+  $("ff-notes").value = f?.notes ?? "";
+  buildFirmPicker("ff-type", ["prop", "hf", "sell"], FIRM_TYPE_LABEL, f?.type ?? "prop");
+  buildFirmPicker("ff-status", FIRM_STATUS_ORDER, FIRM_STATUS_LABEL, f?.status ?? "waiting");
+  $("ff-delete").classList.toggle("hidden", !f);
+  openSheet("firm-sheet");
+}
+
+function saveFirmEdit() {
+  const name = $("ff-name").value.trim();
+  if (!name) { toast("Firm name is required"); return; }
+  const fields = {
+    name, type: pickedFirm("ff-type", "prop"), status: pickedFirm("ff-status", "waiting"),
+    url: $("ff-url").value.trim(), notes: $("ff-notes").value.trim(), updated: nowIso(),
+  };
+  let f;
+  if (editingFirmId) {
+    f = firms.find((x) => x.id === editingFirmId);
+    Object.assign(f, fields);
+  } else {
+    f = { id: uid(), created: nowIso(), match: [name.toLowerCase()], ...fields };
+    firms.push(f);
+  }
+  persistFirms();
+  closeSheets();
+  renderFirms();
+  // moved to Applied and not in the pipeline yet? offer to add it
+  const inPipeline = liveApps().some((a) =>
+    a.firm.toLowerCase().includes(f.match?.[0] || f.name.toLowerCase()));
+  if (fields.status === "applied" && !inPipeline &&
+      confirm(`Add ${name} to your pipeline as Applied?`)) {
+    apps.push({ id: uid(), created: nowIso(), firm: name, role: "", status: "applied",
+                url: f.url, notes: "", updated: nowIso() });
+    persistApps();
+    renderPipeline();
+  }
+}
+
+function deleteFirmEdit() {
+  const f = firms.find((x) => x.id === editingFirmId);
+  if (f) { f.deleted = true; f.updated = nowIso(); }
+  persistFirms();
+  closeSheets();
+  renderFirms();
+  toast("Deleted");
+}
+
 /* ---------------- sync ---------------- */
 
 function persistApps() {
   saveJSON("qt.apps", apps);
+  scheduleSync();
+}
+
+function persistFirms() {
+  saveJSON("qt.firms", firms);
   scheduleSync();
 }
 
@@ -328,16 +489,10 @@ async function syncNow(silent) {
   syncing = true;
   setSyncStatus("Syncing…");
   try {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const { apps: remote, sha } = await GH.loadRemoteApps();
-      const merged = GH.mergeApps(apps, remote);
-      apps = merged;
-      saveJSON("qt.apps", apps);
-      if (JSON.stringify(merged) === JSON.stringify(remote)) break;   // nothing to push
-      const res = await GH.putRemoteApps(merged, sha);
-      if (res.ok) break;
-      // conflict: loop once more with fresh sha
-    }
+    apps = await syncList(apps, GH.appsStore);
+    saveJSON("qt.apps", apps);
+    firms = await syncList(firms, GH.firmsStore);
+    saveJSON("qt.firms", firms);
     localStorage.setItem("qt.lastSync", nowIso());
     setSyncStatus();
     renderAll();
@@ -348,6 +503,19 @@ async function syncNow(silent) {
   } finally {
     syncing = false;
   }
+}
+
+// pull remote, merge (later `updated` wins), push back unless identical
+async function syncList(local, store) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const { list: remote, sha } = await store.load();
+    local = GH.mergeApps(local, remote);
+    if (JSON.stringify(local) === JSON.stringify(remote)) break;   // nothing to push
+    const res = await store.put(local, sha);
+    if (res.ok) break;
+    // conflict: loop once more with fresh sha
+  }
+  return local;
 }
 
 function setSyncStatus(msg) {
@@ -383,19 +551,20 @@ function openSheet(id) {
 }
 function closeSheets() {
   $("sheet-backdrop").classList.add("hidden");
-  for (const id of ["edit-sheet", "settings-sheet", "role-sheet"])
+  for (const id of ["edit-sheet", "settings-sheet", "role-sheet", "firm-sheet"])
     $(id).classList.add("hidden");
 }
 
-const TAB_TITLE = { pipeline: "Pipeline", scout: "Role Scout", cv: "CV Manager" };
+const TAB_TITLE = { pipeline: "Pipeline", scout: "Role Scout", cv: "CV Manager", firms: "Firm Watch" };
 
 function switchTab(name) {
+  currentTab = name;
   document.querySelectorAll(".tabbtn").forEach((b) =>
     b.classList.toggle("active", b.dataset.tab === name));
   for (const t of Object.keys(TAB_TITLE))
     $(`tab-${t}`).classList.toggle("hidden", t !== name);
   $("page-title").textContent = TAB_TITLE[name];
-  $("fab").classList.toggle("hidden", name !== "pipeline");
+  $("fab").classList.toggle("hidden", name !== "pipeline" && name !== "firms");
   if (name === "scout" && GH.hasToken()) {
     const age = feed ? Date.now() - new Date(feed.fetchedAt).getTime() : Infinity;
     if (age > 30 * 60e3) refreshFeed(true);
@@ -506,13 +675,18 @@ function cvRevert() {
   updateCvStatus();
 }
 
-function renderAll() { renderPipeline(); renderScout(); }
+function renderAll() { renderPipeline(); renderScout(); renderFirms(); }
 
 /* ---------------- boot ---------------- */
 
 document.querySelectorAll(".tabbtn").forEach((b) =>
   b.onclick = () => switchTab(b.dataset.tab));
-$("fab").onclick = () => { sheetPrefillRoleId = null; openEdit(null); };
+$("fab").onclick = () => {
+  if (currentTab === "firms") openFirmEdit(null);
+  else { sheetPrefillRoleId = null; openEdit(null); }
+};
+$("ff-save").onclick = saveFirmEdit;
+$("ff-delete").onclick = deleteFirmEdit;
 $("btn-settings").onclick = openSettings;
 $("btn-refresh").onclick = () => { refreshFeed(); syncNow(true); };
 $("sheet-backdrop").onclick = closeSheets;
@@ -558,7 +732,7 @@ if ("serviceWorker" in navigator && !location.search.includes("nosw")) {
   };
   navigator.serviceWorker.addEventListener("controllerchange", () => location.reload());
 }
-$("s-version").textContent = "1.1.0";
+$("s-version").textContent = "1.2.0";
 
 renderAll();
 switchTab("pipeline");

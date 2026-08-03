@@ -4,6 +4,8 @@
  *   data/seen.json            – scout's full role corpus (read)
  *   data/last_run.json        – daily run stamp (read)
  *   tracker/applications.json – this app's pipeline (read/write)
+ *   tracker/firms.json        – firm watchlist (read/write)
+ *   tracker/cv/*.tex          – CV sources (read/write)
  *
  * With ?mock=1 the app reads local dev-mock/ files instead (dev only).
  */
@@ -96,27 +98,33 @@ const GH = (() => {
     return { lastRun, roles, fetchedAt: new Date().toISOString() };
   }
 
-  /* ---------- applications sync ---------- */
+  /* ---------- synced JSON lists (applications, firms) ---------- */
 
-  async function loadRemoteApps() {
-    const res = await apiGet(APPS_PATH);
-    if (!res) return { apps: [], sha: null };
-    return { apps: res.json.apps || [], sha: res.sha };
+  function makeListStore(path, key, message) {
+    return {
+      async load() {
+        const res = await apiGet(path);
+        if (!res) return { list: [], sha: null };
+        return { list: res.json[key] || [], sha: res.sha };
+      },
+      async put(list, sha) {
+        if (MOCK) return { ok: true, mock: true };
+        const content = encodeB64(JSON.stringify(
+          { version: 1, updated: new Date().toISOString(), [key]: list }, null, 1));
+        const body = { message, content, branch: "main" };
+        if (sha) body.sha = sha;
+        const r = await fetch(API + path, {
+          method: "PUT", headers: headers(), body: JSON.stringify(body),
+        });
+        if (r.status === 409 || r.status === 422) return { ok: false, conflict: true };
+        if (!r.ok) throw new Error(`GitHub PUT ${r.status}`);
+        return { ok: true };
+      },
+    };
   }
 
-  async function putRemoteApps(apps, sha, message) {
-    if (MOCK) return { ok: true, mock: true };
-    const content = encodeB64(
-      JSON.stringify({ version: 1, updated: new Date().toISOString(), apps }, null, 1));
-    const body = { message: message || "tracker: update pipeline", content, branch: "main" };
-    if (sha) body.sha = sha;
-    const r = await fetch(API + APPS_PATH, {
-      method: "PUT", headers: headers(), body: JSON.stringify(body),
-    });
-    if (r.status === 409 || r.status === 422) return { ok: false, conflict: true };
-    if (!r.ok) throw new Error(`GitHub PUT ${r.status}`);
-    return { ok: true };
-  }
+  const appsStore = makeListStore(APPS_PATH, "apps", "tracker: update pipeline");
+  const firmsStore = makeListStore("tracker/firms.json", "firms", "tracker: update firm watchlist");
 
   // Per-app merge: later `updated` wins; tombstones (deleted:true) respected.
   function mergeApps(local, remote) {
@@ -198,7 +206,7 @@ const GH = (() => {
     }
   }
 
-  return { fetchFeed, loadRemoteApps, putRemoteApps, mergeApps, testConnection,
+  return { fetchFeed, appsStore, firmsStore, mergeApps, testConnection,
            listCv, loadCvFile, saveCvFile,
            hasToken: () => MOCK || !!token(), MOCK };
 })();
