@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Quant Tracker">
-<link rel="stylesheet" href="css/style.css?v=4">
+<link rel="stylesheet" href="css/style.css?v=5">
 </head>
 <body>
 
@@ -141,6 +141,23 @@
   </div>
 </div>
 
+<!-- ============ STATUS MANAGER SHEET ============ -->
+<div id="status-sheet" class="sheet hidden">
+  <div class="sheet-handle"></div>
+  <h2>Pipeline statuses</h2>
+  <p class="muted small">Rename, tap the swatch to recolour, ☠ marks a
+  dead end (dims the card, drops it from "in play"), ↑ reorders.
+  Statuses in use can't be deleted.</p>
+  <div id="status-rows"></div>
+  <div class="row">
+    <input id="st-new" type="text" placeholder="New status label…" maxlength="24">
+    <button id="st-add" class="btn">Add</button>
+  </div>
+  <div class="sheet-actions">
+    <button id="st-done" class="btn primary">Done</button>
+  </div>
+</div>
+
 <!-- ============ FIRM SHEET ============ -->
 <div id="firm-sheet" class="sheet hidden">
   <div class="sheet-handle"></div>
@@ -185,6 +202,9 @@
     <span id="s-test-result" class="muted small"></span>
   </div>
   <div id="s-sync-status" class="muted small"></div>
+  <div class="row">
+    <button id="s-statuses" class="btn">Edit pipeline statuses</button>
+  </div>
   <div class="sheet-actions">
     <button id="s-wipe" class="btn danger">Wipe local data</button>
     <button id="s-save" class="btn primary">Save</button>
@@ -194,7 +214,7 @@
 
 <div id="toast" class="toast hidden"></div>
 
-<script src="js/gh.js?v=4"></script>
-<script src="js/app.js?v=4"></script>
+<script src="js/gh.js?v=5"></script>
+<script src="js/app.js?v=5"></script>
 </body>
 </html>

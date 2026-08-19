@@ -267,6 +267,29 @@ code { font-family: var(--mono); font-size: .92em; background: var(--panel-2); p
 #role-detail .sec { font-size: 11px; font-weight: 800; letter-spacing: .8px; color: var(--accent); text-transform: uppercase; margin-top: 12px; font-family: var(--mono); }
 #role-detail .desc { font-size: 13px; color: var(--muted); white-space: pre-line; margin-top: 6px; }
 
+/* ---- status manager ---- */
+.st-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.swatch {
+  width: 28px; height: 28px; border-radius: 9px; border: 1.5px solid;
+  flex: 0 0 auto; cursor: pointer; padding: 0;
+}
+.st-label {
+  flex: 1; min-width: 0; background: var(--panel); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text); padding: 8px 10px; font-size: 14px;
+}
+.st-btn {
+  flex: 0 0 auto; width: 34px; height: 34px; border-radius: 8px;
+  background: var(--panel); border: 1px solid var(--border);
+  color: var(--muted); font-size: 14px; cursor: pointer; padding: 0;
+}
+.st-btn.on { color: var(--amber); border-color: var(--amber); }
+.st-btn:disabled { opacity: .3; }
+#st-new {
+  flex: 1; min-width: 0; background: var(--panel); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text); padding: 9px 10px; font-size: 14px;
+}
+.status-opt.st-edit { border-style: dashed; color: var(--muted); }
+
 /* ---- firms tab ---- */
 .card.s-firm-posted  { border-left-color: var(--green); }
 .card.s-firm-waiting { border-left-color: var(--amber); }

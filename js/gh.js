@@ -125,6 +125,7 @@ const GH = (() => {
 
   const appsStore = makeListStore(APPS_PATH, "apps", "tracker: update pipeline");
   const firmsStore = makeListStore("tracker/firms.json", "firms", "tracker: update firm watchlist");
+  const statusesStore = makeListStore("tracker/statuses.json", "statuses", "tracker: update statuses");
 
   // Per-app merge: later `updated` wins; tombstones (deleted:true) respected.
   function mergeApps(local, remote) {
@@ -206,7 +207,7 @@ const GH = (() => {
     }
   }
 
-  return { fetchFeed, appsStore, firmsStore, mergeApps, testConnection,
+  return { fetchFeed, appsStore, firmsStore, statusesStore, mergeApps, testConnection,
            listCv, loadCvFile, saveCvFile,
            hasToken: () => MOCK || !!token(), MOCK };
 })();

@@ -3,11 +3,35 @@
 
 /* ---------------- state ---------------- */
 
-const STATUS_ORDER = ["offer", "interview", "oa", "applied", "not_applied", "rejected"];
-const STATUS_LABEL = {
-  offer: "Offer", interview: "Interview", oa: "OA",
-  applied: "Applied", not_applied: "Not applied", rejected: "Rejected",
+/* Pipeline statuses are data, not constants: user-editable, synced to
+ * tracker/statuses.json. `dead` = likely dead end (dims card, excluded
+ * from "in play"). Seeds use a FIXED timestamp so remote edits always win. */
+const PALETTE = {
+  grey:   { bg: "#262115", fg: "#b3a88f" },
+  blue:   { bg: "#0d2b36", fg: "#6fd0ef" },
+  amber:  { bg: "#3a2c07", fg: "#ffd166" },
+  violet: { bg: "#2c2144", fg: "#d3bcff" },
+  green:  { bg: "#0c3320", fg: "#55efa0" },
+  red:    { bg: "#3a1210", fg: "#ff8a80" },
+  teal:   { bg: "#0d3330", fg: "#5eead4" },
+  pink:   { bg: "#331328", fg: "#ff9ad5" },
+  slate:  { bg: "#1c2333", fg: "#9fb3d1" },
+  ash:    { bg: "#2a2222", fg: "#a09090" },
 };
+const SEED_TS = "2026-08-08T00:00:00.000Z";
+const DEFAULT_STATUSES = [
+  ["offer",          "Offer",          "green",  false],
+  ["interview",      "Interview",      "violet", false],
+  ["recruiter_call", "Recruiter call", "teal",   false],
+  ["call_done",      "Call done",      "slate",  false],
+  ["oa",             "OA",             "amber",  false],
+  ["oa_done",        "OA done",        "pink",   false],
+  ["applied",        "Applied",        "blue",   false],
+  ["not_applied",    "Not applied",    "grey",   false],
+  ["ghosted",        "Ghosted",        "ash",    true],
+  ["rejected",       "Rejected",       "red",    true],
+].map(([id, label, color, dead], i) =>
+  ({ id, label, color, dead, ord: (i + 1) * 10, created: SEED_TS, updated: SEED_TS }));
 const CAT_LABEL = {
   summer_internship: "INTERN", graduate: "GRAD", spring_week: "SPRING",
   off_cycle: "OFF-CYCLE", other: "OTHER",
@@ -15,6 +39,8 @@ const CAT_LABEL = {
 
 let apps = loadJSON("qt.apps", []);
 let firms = loadJSON("qt.firms", []);
+let statuses = loadJSON("qt.statuses", []);
+if (!statuses.length) statuses = JSON.parse(JSON.stringify(DEFAULT_STATUSES));
 let feed = loadJSON("qt.feed", null);          // {lastRun, roles, fetchedAt}
 let pipelineFilter = "all";
 let firmFilter = "all";
@@ -55,6 +81,12 @@ function toast(msg, ms = 2200) {
 }
 
 const liveApps = () => apps.filter((a) => !a.deleted);
+const liveStatuses = () =>
+  statuses.filter((s) => !s.deleted).sort((a, b) => (a.ord ?? 0) - (b.ord ?? 0));
+const statusDef = (id) =>
+  statuses.find((s) => s.id === id && !s.deleted) ||
+  { id, label: id, color: "grey", dead: false, ord: 999 };
+const statusColor = (id) => PALETTE[statusDef(id).color] || PALETTE.grey;
 
 /* ---------------- pipeline tab ---------------- */
 
@@ -63,8 +95,11 @@ function renderPipeline() {
   const counts = {};
   for (const a of live) counts[a.status] = (counts[a.status] || 0) + 1;
 
-  // summary line
-  const active = live.filter((a) => !["rejected", "not_applied"].includes(a.status)).length;
+  // summary line: "in play" = not a dead-end status and actually applied
+  const active = live.filter((a) => {
+    const d = statusDef(a.status);
+    return !d.dead && a.status !== "not_applied";
+  }).length;
   $("pipeline-summary").innerHTML = live.length
     ? `<b>${live.length}</b> tracked &nbsp;·&nbsp; <b>${active}</b> in play` +
       (counts.interview ? ` &nbsp;·&nbsp; <b>${counts.interview}</b> interview` : "") +
@@ -73,8 +108,8 @@ function renderPipeline() {
 
   // filter chips
   const chips = [["all", `All<span class="n">${live.length}</span>`]];
-  for (const s of STATUS_ORDER) {
-    if (counts[s]) chips.push([s, `${STATUS_LABEL[s]}<span class="n">${counts[s]}</span>`]);
+  for (const s of liveStatuses()) {
+    if (counts[s.id]) chips.push([s.id, `${esc(s.label)}<span class="n">${counts[s.id]}</span>`]);
   }
   $("pipeline-filters").innerHTML = chips.map(([k, html]) =>
     `<button class="chip ${pipelineFilter === k ? "active" : ""}" data-f="${k}">${html}</button>`).join("");
@@ -85,21 +120,25 @@ function renderPipeline() {
   const shown = live
     .filter((a) => pipelineFilter === "all" || a.status === pipelineFilter)
     .sort((a, b) => {
-      const d = STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status);
+      const d = statusDef(a.status).ord - statusDef(b.status).ord;
       return d !== 0 ? d : (b.updated || "").localeCompare(a.updated || "");
     });
 
-  $("apps-list").innerHTML = shown.map((a) => `
-    <div class="card s-${a.status} ${a.status === "rejected" ? "dim" : ""}" data-id="${a.id}">
+  $("apps-list").innerHTML = shown.map((a) => {
+    const def = statusDef(a.status);
+    const c = PALETTE[def.color] || PALETTE.grey;
+    return `
+    <div class="card ${def.dead ? "dim" : ""}" style="border-left-color:${c.fg}" data-id="${a.id}">
       <div class="card-top">
         <div>
           <div class="card-firm">${esc(a.firm)}</div>
           ${a.role ? `<div class="card-role">${esc(a.role)}</div>` : ""}
         </div>
-        <span class="pill ${a.status}">${STATUS_LABEL[a.status]}</span>
+        <span class="pill" style="background:${c.bg};color:${c.fg}">${esc(def.label)}</span>
       </div>
       ${a.notes ? `<div class="card-sub">✎ ${esc(a.notes.length > 70 ? a.notes.slice(0, 70) + "…" : a.notes)}</div>` : ""}
-    </div>`).join("");
+    </div>`;
+  }).join("");
   $("apps-list").querySelectorAll(".card").forEach((c) =>
     c.onclick = () => openEdit(c.dataset.id));
 
@@ -109,13 +148,17 @@ function renderPipeline() {
 /* ---------------- edit sheet ---------------- */
 
 function buildStatusPicker(sel) {
-  $("f-status").innerHTML = STATUS_ORDER.map((s) =>
-    `<button type="button" class="status-opt ${s} ${s === sel ? "sel" : ""}" data-s="${s}">${STATUS_LABEL[s]}</button>`).join("");
+  $("f-status").innerHTML = liveStatuses().map((s) => {
+    const c = PALETTE[s.color] || PALETTE.grey;
+    const st = s.id === sel ? ` style="background:${c.bg};color:${c.fg};border-color:${c.fg}"` : "";
+    return `<button type="button" class="status-opt ${s.id === sel ? "sel" : ""}"${st} data-s="${s.id}">${esc(s.label)}</button>`;
+  }).join("") +
+  `<button type="button" class="status-opt st-edit" data-add="1">✎ edit…</button>`;
   $("f-status").querySelectorAll(".status-opt").forEach((b) =>
-    b.onclick = () => buildStatusPicker(b.dataset.s));
+    b.onclick = () => b.dataset.add ? openStatusManager() : buildStatusPicker(b.dataset.s));
 }
 const pickedStatus = () =>
-  $("f-status").querySelector(".sel")?.dataset.s || "not_applied";
+  $("f-status").querySelector(".sel")?.dataset.s || liveStatuses()[0]?.id || "not_applied";
 
 function openEdit(id, prefill) {
   editingId = id;
@@ -314,6 +357,91 @@ async function refreshFeed(silent) {
   }
 }
 
+/* ---------------- status manager ---------------- */
+
+function openStatusManager() {
+  // stacks above the edit sheet (later in DOM) so form values survive
+  renderStatusRows();
+  $("sheet-backdrop").classList.remove("hidden");
+  $("status-sheet").classList.remove("hidden");
+}
+
+function closeStatusManager() {
+  $("status-sheet").classList.add("hidden");
+  if ($("edit-sheet").classList.contains("hidden")) closeSheets();
+  else buildStatusPicker(pickedStatus());      // refresh picker under it
+  renderPipeline();
+}
+
+function renderStatusRows() {
+  const inUse = new Set(liveApps().map((a) => a.status));
+  const list = liveStatuses();
+  $("status-rows").innerHTML = list.map((s, i) => {
+    const c = PALETTE[s.color] || PALETTE.grey;
+    return `
+    <div class="st-row" data-id="${s.id}">
+      <button class="swatch" data-act="color" title="colour"
+        style="background:${c.bg};border-color:${c.fg}"></button>
+      <input class="st-label" data-act="label" value="${esc(s.label)}" maxlength="24">
+      <button class="st-btn ${s.dead ? "on" : ""}" data-act="dead" title="dead end — dims card, not counted in play">☠</button>
+      <button class="st-btn" data-act="up" ${i === 0 ? "disabled" : ""} title="move up">↑</button>
+      <button class="st-btn" data-act="del" ${inUse.has(s.id) ? "disabled" : ""}
+        title="${inUse.has(s.id) ? "in use — reassign those applications first" : "delete"}">✕</button>
+    </div>`;
+  }).join("");
+
+  $("status-rows").querySelectorAll(".st-row").forEach((row) => {
+    const s = statuses.find((x) => x.id === row.dataset.id);
+    const touch = () => { s.updated = nowIso(); persistStatuses(); };
+    row.querySelector('[data-act="color"]').onclick = () => {
+      const keys = Object.keys(PALETTE);
+      s.color = keys[(keys.indexOf(s.color) + 1) % keys.length];
+      touch(); renderStatusRows();
+    };
+    row.querySelector('[data-act="label"]').onchange = (e) => {
+      const v = e.target.value.trim();
+      if (v) { s.label = v; touch(); } else e.target.value = s.label;
+    };
+    row.querySelector('[data-act="dead"]').onclick = () => {
+      s.dead = !s.dead; touch(); renderStatusRows();
+    };
+    row.querySelector('[data-act="up"]').onclick = () => {
+      const list = liveStatuses();
+      const i = list.findIndex((x) => x.id === s.id);
+      const prev = list[i - 1];
+      [s.ord, prev.ord] = [prev.ord, s.ord];
+      s.updated = prev.updated = nowIso();
+      persistStatuses(); renderStatusRows();
+    };
+    row.querySelector('[data-act="del"]').onclick = () => {
+      if (liveStatuses().length <= 1) { toast("Need at least one status"); return; }
+      s.deleted = true; touch(); renderStatusRows();
+    };
+  });
+}
+
+function addStatus() {
+  const label = $("st-new").value.trim();
+  if (!label) return;
+  const used = new Set(liveStatuses().map((s) => s.color));
+  const color = Object.keys(PALETTE).find((k) => !used.has(k)) || "grey";
+  const maxOrd = Math.max(0, ...liveStatuses().map((s) => s.ord ?? 0));
+  statuses.push({
+    id: "s-" + label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
+       + "-" + Math.random().toString(36).slice(2, 6),
+    label, color, dead: false, ord: maxOrd + 10,
+    created: nowIso(), updated: nowIso(),
+  });
+  $("st-new").value = "";
+  persistStatuses();
+  renderStatusRows();
+}
+
+function persistStatuses() {
+  saveJSON("qt.statuses", statuses);
+  scheduleSync();
+}
+
 /* ---------------- firms tab ---------------- */
 
 const FIRM_STATUS_ORDER = ["posted", "waiting", "applied", "pass"];
@@ -493,6 +621,10 @@ async function syncNow(silent) {
     saveJSON("qt.apps", apps);
     firms = await syncList(firms, GH.firmsStore);
     saveJSON("qt.firms", firms);
+    statuses = await syncList(statuses, GH.statusesStore);
+    if (!statuses.filter((s) => !s.deleted).length)
+      statuses = statuses.concat(JSON.parse(JSON.stringify(DEFAULT_STATUSES)));
+    saveJSON("qt.statuses", statuses);
     localStorage.setItem("qt.lastSync", nowIso());
     setSyncStatus();
     renderAll();
@@ -551,7 +683,7 @@ function openSheet(id) {
 }
 function closeSheets() {
   $("sheet-backdrop").classList.add("hidden");
-  for (const id of ["edit-sheet", "settings-sheet", "role-sheet", "firm-sheet"])
+  for (const id of ["edit-sheet", "settings-sheet", "role-sheet", "firm-sheet", "status-sheet"])
     $(id).classList.add("hidden");
 }
 
@@ -687,6 +819,10 @@ $("fab").onclick = () => {
 };
 $("ff-save").onclick = saveFirmEdit;
 $("ff-delete").onclick = deleteFirmEdit;
+$("st-add").onclick = addStatus;
+$("st-new").onkeydown = (e) => { if (e.key === "Enter") addStatus(); };
+$("st-done").onclick = closeStatusManager;
+$("s-statuses").onclick = openStatusManager;
 $("btn-settings").onclick = openSettings;
 $("btn-refresh").onclick = () => { refreshFeed(); syncNow(true); };
 $("sheet-backdrop").onclick = closeSheets;
@@ -732,7 +868,7 @@ if ("serviceWorker" in navigator && !location.search.includes("nosw")) {
   };
   navigator.serviceWorker.addEventListener("controllerchange", () => location.reload());
 }
-$("s-version").textContent = "1.2.0";
+$("s-version").textContent = "1.3.0";
 
 renderAll();
 switchTab("pipeline");
