@@ -66,6 +66,7 @@ body {
   padding: 8px 16px; border-radius: 999px; cursor: pointer;
   box-shadow: 0 4px 20px rgba(0,0,0,.6);
 }
+.update-pill.alert { background: #3a1210; color: #ff8a80; border: 1px solid #7a2a2a; }
 
 /* ---- layout ---- */
 main { padding: 12px 14px 20px; max-width: 640px; margin: 0 auto; }

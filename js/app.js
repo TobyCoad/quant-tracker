@@ -340,6 +340,10 @@ function openRoleDetail(r) {
   openSheet("role-sheet");
 }
 
+// persistent banner: auth failures must be loud, not buried in settings
+// (the Aug-2026 token expiry went unnoticed for six weeks)
+function syncAlert(on) { $("sync-alert").classList.toggle("hidden", !on); }
+
 async function refreshFeed(silent) {
   if (!GH.hasToken()) { if (!silent) openSettings(); return; }
   $("btn-refresh").classList.add("spin");
@@ -347,8 +351,10 @@ async function refreshFeed(silent) {
     feed = await GH.fetchFeed();
     saveJSON("qt.feed", feed);
     renderScout();
+    syncAlert(false);
     if (!silent) toast("Scout feed updated");
   } catch (e) {
+    if (e.message.startsWith("auth")) syncAlert(true);
     if (!silent) toast(e.message.startsWith("auth")
       ? `Token lacks Contents access (${e.message.slice(5)}) — check settings`
       : `Feed refresh failed: ${e.message}`, 4000);
@@ -679,9 +685,11 @@ async function syncNow(silent) {
     saveJSON("qt.statuses", statuses);
     localStorage.setItem("qt.lastSync", nowIso());
     setSyncStatus();
+    syncAlert(false);
     renderAll();
     if (!silent) toast("Synced");
   } catch (e) {
+    if (e.message.startsWith("auth")) syncAlert(true);
     setSyncStatus(e.message.startsWith("auth") ? `Token rejected (${e.message.slice(5)})` : `Sync failed: ${e.message}`);
     if (!silent) toast("Sync failed");
   } finally {
@@ -877,6 +885,7 @@ $("st-done").onclick = closeStatusManager;
 $("s-statuses").onclick = openStatusManager;
 $("s-export-csv").onclick = exportCsv;
 $("s-export-json").onclick = exportJson;
+$("sync-alert").onclick = openSettings;
 $("btn-settings").onclick = openSettings;
 $("btn-refresh").onclick = () => { refreshFeed(); syncNow(true); };
 $("sheet-backdrop").onclick = closeSheets;
@@ -922,7 +931,7 @@ if ("serviceWorker" in navigator && !location.search.includes("nosw")) {
   };
   navigator.serviceWorker.addEventListener("controllerchange", () => location.reload());
 }
-$("s-version").textContent = "1.4.0";
+$("s-version").textContent = "1.4.1";
 
 renderAll();
 switchTab("pipeline");
