@@ -595,6 +595,58 @@ function deleteFirmEdit() {
   toast("Deleted");
 }
 
+/* ---------------- export ---------------- */
+
+function csvOf(header, rows) {
+  const q = (s) => `"${String(s ?? "").replace(/"/g, '""')}"`;
+  return [header, ...rows].map((r) => r.map(q).join(",")).join("\r\n");
+}
+
+async function shareOrDownload(files) {
+  if (navigator.canShare?.({ files })) {
+    try { await navigator.share({ files }); return; }
+    catch (e) { if (e.name === "AbortError") return; }   // user closed the sheet
+  }
+  for (const f of files) {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(f);
+    a.download = f.name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10e3);
+  }
+}
+
+function exportCsv() {
+  const stamp = new Date().toISOString().slice(0, 10);
+  const appRows = liveApps()
+    .sort((a, b) => {
+      const d = statusDef(a.status).ord - statusDef(b.status).ord;
+      return d !== 0 ? d : a.firm.localeCompare(b.firm);
+    })
+    .map((a) => [a.firm, a.role, statusDef(a.status).label, a.notes, a.url,
+                 (a.created || "").slice(0, 10), (a.updated || "").slice(0, 10)]);
+  const firmRows = firms.filter((f) => !f.deleted)
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((f) => [f.name, FIRM_TYPE_LABEL[f.type] || f.type,
+                 FIRM_STATUS_LABEL[f.status] || f.status, f.notes, f.url]);
+  shareOrDownload([
+    new File([csvOf(["Firm", "Role", "Status", "Notes", "Link", "Created", "Updated"], appRows)],
+      `applications-${stamp}.csv`, { type: "text/csv" }),
+    new File([csvOf(["Firm", "Type", "Status", "Notes", "Careers URL"], firmRows)],
+      `firm-watchlist-${stamp}.csv`, { type: "text/csv" }),
+  ]);
+}
+
+function exportJson() {
+  const stamp = new Date().toISOString().slice(0, 10);
+  const payload = JSON.stringify(
+    { version: 1, exported: nowIso(), apps, firms, statuses }, null, 1);
+  shareOrDownload([new File([payload], `quant-tracker-backup-${stamp}.json`,
+    { type: "application/json" })]);
+}
+
 /* ---------------- sync ---------------- */
 
 function persistApps() {
@@ -823,6 +875,8 @@ $("st-add").onclick = addStatus;
 $("st-new").onkeydown = (e) => { if (e.key === "Enter") addStatus(); };
 $("st-done").onclick = closeStatusManager;
 $("s-statuses").onclick = openStatusManager;
+$("s-export-csv").onclick = exportCsv;
+$("s-export-json").onclick = exportJson;
 $("btn-settings").onclick = openSettings;
 $("btn-refresh").onclick = () => { refreshFeed(); syncNow(true); };
 $("sheet-backdrop").onclick = closeSheets;
@@ -868,7 +922,7 @@ if ("serviceWorker" in navigator && !location.search.includes("nosw")) {
   };
   navigator.serviceWorker.addEventListener("controllerchange", () => location.reload());
 }
-$("s-version").textContent = "1.3.0";
+$("s-version").textContent = "1.4.0";
 
 renderAll();
 switchTab("pipeline");

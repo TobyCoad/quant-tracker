@@ -1,5 +1,5 @@
 /* quant-tracker service worker — bump CACHE_VERSION on every deploy */
-const CACHE_VERSION = "qt-v5";
+const CACHE_VERSION = "qt-v6";
 const SHELL = [
   ".",
   "index.html",

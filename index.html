@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Quant Tracker">
-<link rel="stylesheet" href="css/style.css?v=5">
+<link rel="stylesheet" href="css/style.css?v=6">
 </head>
 <body>
 
@@ -205,6 +205,12 @@
   <div class="row">
     <button id="s-statuses" class="btn">Edit pipeline statuses</button>
   </div>
+  <div class="row">
+    <button id="s-export-csv" class="btn">Export CSV</button>
+    <button id="s-export-json" class="btn">Export JSON backup</button>
+  </div>
+  <p class="muted tiny">CSV = applications + firm watchlist (two files, opens the
+  share sheet). JSON = everything, re-importable backup.</p>
   <div class="sheet-actions">
     <button id="s-wipe" class="btn danger">Wipe local data</button>
     <button id="s-save" class="btn primary">Save</button>
@@ -214,7 +220,7 @@
 
 <div id="toast" class="toast hidden"></div>
 
-<script src="js/gh.js?v=5"></script>
-<script src="js/app.js?v=5"></script>
+<script src="js/gh.js?v=6"></script>
+<script src="js/app.js?v=6"></script>
 </body>
 </html>
